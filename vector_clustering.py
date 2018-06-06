@@ -1,3 +1,6 @@
+'''
+This file used to use the old vector.json which is of a very bad format.
+'''
 from ontology import tree
 import operator
 import pandas as pd
