@@ -46,6 +46,92 @@ def treesimscore(new_score, score_list):
     else:
         return False
 
+reserve_threshold = 10
+from subprocess import Popen, PIPE
+import csv
+
+def new_node_check(tree, ques, reserve):
+    #This is the threshold
+    if len(reserve) > reserve_threshold:
+        tag_mat = []
+        for questags in reserve:
+            question, tags = questags.split('\t')
+            tags = re.split('\| | \| |\n', tags)
+            tag_list = list(filter(None, tags))
+            tag_mat.append(tag_list)
+
+        similarity_mat = [[ nlp(' '.join(k)).similarity(nlp(' '.join(i))) for k in tag_mat] for i in tag_mat]
+        distance_mat = [[ (1/k)-1 for k in i] for i in similarity_mat]
+        with open("dist_mat.csv", "w") as f:
+            writer = csv.writer(f)
+            writer.writerows(distance_mat)
+
+        with open("corpus.csv", "w") as f:
+            for item in tag_mat:
+                f.write("%s\n" % " ".join(item))
+
+        process = Popen(['Rscript', 'ddcrp/ddcrp.R'], stdout=PIPE, stderr=PIPE)
+        stdout, stderr = process.communicate()
+        print(stdout, stderr)
+        try:
+            with open("cluster.txt", "r") as f:
+                ddcrp_clust = f.readlines()
+
+            ddcrp_clust = ddcrp_clust[1:]
+            op = {}
+            for i in ddcrp_clust:
+                line = i.split(' ')
+                if line[1] not in op:
+                    op[line[1]] = []
+                op[line[1]].append(reserve[int(line[2])-1])
+            print("\n\n\n")
+            for key, value in op.items():
+                val = list(set(value))
+                op[key] = val
+            for key, value in op.items():
+                for i in value:
+                    print(i)
+
+                print("\n")
+        except Exception as e:
+            print(e)
+        new_node(tree, ques, op)
+        reserve = []
+        return True
+    else:
+        return False
+
+
+def new_node(tree, ques, op):
+    if "children" not in tree:
+        tree["children"] = []
+        ques["children"] = []
+    no_of_children = len(tree["children"])
+    net_embedding = np.zeros(300)
+    for key, value in op.items():
+        vector_sum = np.zeros(300)
+        for k in value:
+            question, tags = k.split('\t')
+            tags = re.split('\| | \| |\n', tags)
+            tag_list = list(filter(None, tags))
+            if len(tag_list) > 0:
+                doc = nlp(' '.join(tag_list))
+                vector_sum += doc.vector
+        vector_sum = np.divide(vector_sum, len(value))
+        net_embedding += vector_sum
+        tree["children"].append({"name": "To be derived", "recommendations": value, "embedding": vector_sum.tolist()})
+        ques["children"].append({"name": "To be derived", "recommendations": value })
+    net_embedding = np.divide(net_embedding, len(op))
+    #Accounting for leaves
+    if len(tree["children"]) == len(op):
+        tree["embedding"] = net_embedding.tolist()
+    else:
+        divfac = len(op) / len(tree["children"])
+        new_embedding = np.asarray([(1-divfac)*i for i in tree["embedding"]]) + np.asarray([(divfac)*i for i in net_embedding.tolist()])
+        tree["embedding"] = new_embedding.tolist()
+
+
+
 def tree_construct(tree, ques, doc, prev_score=[], relation=[], score_list=[]):
     score = {}
     if "children" in tree:
@@ -63,19 +149,23 @@ def tree_construct(tree, ques, doc, prev_score=[], relation=[], score_list=[]):
             else:
                 if "recommendations" not in ques:
                     ques["recommendations"] = []
-                ques["recommendations"].append(question)
+                ques["recommendations"].append(data_instance)
+                new_node_check(tree, ques, ques["recommendations"])
                 return
         except Exception as e:
+            print(e)
             pass
     else:
         if "recommendations" not in ques:
             ques["recommendations"] = []
-        ques["recommendations"].append(question)
+        ques["recommendations"].append(data_instance)
+        new_node_check(tree, ques, ques["recommendations"])
         return
 
 
 for i in range(len(data)):
     # try:
+    data_instance = data[i]
     question, tags = data[i].split('\t')
     tags = re.split('\| | \| |\n', tags)
     tag_list = list(filter(None, tags))
@@ -128,12 +218,14 @@ for i in range(len(data)):
         tree_construct(tree_instant, tree, doc, relation=relation, score_list=score_list)
         related = ' --> '.join(relation)
         print(i, '\t', question, '\t', related)
-        if not i % 1:
-            with open("dictques_stop_recursive.json", "w") as buck:
-                json.dump(tree, buck, indent=4, sort_keys=True)
+        if not i % 100:
+            with open('dynamic_tree.json', 'w') as outfile:
+                import re
+                output = json.dumps(tree, indent=4)
+                outfile.write(re.sub(r'(?<=\d),\s+', ', ', output))
 
-        with open("relationtagstopping_recursive.txt", "a") as file:
-            file.write(str(i) + '\t' + question + '\t' + related + '\n')
+        # with open("relationtagstopping_recursive.txt", "a") as file:
+        #     file.write(str(i) + '\t' + question + '\t' + related + '\n')
 
     # except Exception as e:
     #     print(e, "Failed")

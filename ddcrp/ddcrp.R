@@ -1,4 +1,6 @@
+setwd("~/Desktop/CS/Stuffs/DeepL/TaskRecommend/ddcrp/")
 library('Matrix')
+library('tm')
 source("ddcrp-inference.R")
 
 seq.dist <- function(i,j)
@@ -60,8 +62,7 @@ heldout.lhoods <- function(dat.ho, ho.idx, dat.obs, map.state,
 
 
 ##CIKM script
-setwd("~/Desktop/CS/Stuffs/DeepL/TaskRecommend/ddcrp/")
-docs <- readLines("../test.csv")
+docs <- readLines("../corpus.csv")
 corpus <- Corpus(VectorSource(docs))
 
 dt = DocumentTermMatrix(corpus)
@@ -70,7 +71,7 @@ dt = DocumentTermMatrix(corpus)
 v = as.matrix(dt)
 
 #stdist = as.matrix(stringdistmatrix(docs))
-stdist = read.csv("./cikm-quora-paper/output/research/Universal_Pool_Distance_Matrix.csv",head=F)
+stdist = read.csv("../dist_mat.csv",head=F)
 
 res <- ddcrp.gibbs(dat=v, dist.fn=seq.dist, alpha=1,
                    decay.fn=window.decay(1),
@@ -80,6 +81,6 @@ print (dim(res$map.state))
 clusters = res$map.state
 length(unique(clusters$cluster))
 
-write.table(clusters, file="cluster_quora_research1.txt", row.names=FALSE)
+write.table(clusters, file="../cluster.txt", row.names=FALSE)
 
 
