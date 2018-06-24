@@ -21,7 +21,7 @@ def cleanup(val):
         new_val = val[4:]
     elif val.startswith(''):
         new_val = val.replace("<http://www.wikihow.com/category:", "")
-        new_val[:-1]
+        new_val = new_val[:-1]
 
     return title_except(new_val, articles)
 
