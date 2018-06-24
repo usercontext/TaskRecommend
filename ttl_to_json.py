@@ -6,7 +6,7 @@ with open("wikiHow_categories_hierarchy.ttl") as f:
 
 # print(data[0])
 import re
-articles = ['a', 'an', 'of', 'the', 'is', 'and']
+articles = ['a', 'an', 'of', 'the', 'is', 'and', 'for']
 
 def title_except(s, exceptions):
     word_list = re.split('-', s)       # re.split behaves as expected
@@ -65,4 +65,4 @@ for i in a:
 import json
 
 with open('know-how.json', 'w') as f:
-    json.dump(forest, f, indent=4)
+    json.dump(forest[0], f, indent=4)
